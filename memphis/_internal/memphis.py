@@ -20,7 +20,6 @@ from typing import Iterable, Union
 import uuid
 import base64
 import re
-import sys
 
 import nats as broker
 from google.protobuf import descriptor_pb2, descriptor_pool
@@ -72,9 +71,7 @@ class Memphis:
                 conn = await broker.connect(**ping_connection_opts)
                 await conn.close()
             except Exception as e:
-                print("Caught exception")
                 if "authorization violation" in str(e).lower():
-                    print("authorization violation")
                     try:
                         if "localhost" in connection_opts['servers']: # for handling bad quality networks like port fwd
                             await asyncio.sleep(1)
@@ -84,15 +81,13 @@ class Memphis:
                         await conn.close()
                         connection_opts["user"] = self.username
                     except Exception as e_1:
-                        print("caught exception on second attempt")
-                        sys.exit(1)
+                        raise e_1
                 else:
-                    print("other exception")
-                    sys.exit(1)
-                    #raise e
+                    raise e
+
         if "localhost" in connection_opts['servers']:
             await asyncio.sleep(1) # for handling bad quality networks like port fwd
-        print(connection_opts)
+
         return await broker.connect(**connection_opts)
 
     async def connect(
