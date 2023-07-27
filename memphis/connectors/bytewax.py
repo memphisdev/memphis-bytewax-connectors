@@ -1,4 +1,5 @@
 import asyncio
+from collections import deque
 
 from bytewax.inputs import DynamicInput
 from bytewax.inputs import StatelessSource
