@@ -25,16 +25,16 @@ class _MemphisConsumerSource(StatelessSource):
                                                                               pull_interval_ms=100))
 
     def next(self):
-        if len(self.messages_) == 0:
-            batch = self.loop_.run_until_complete(self.consumer_.fetch())
-            if batch is not None:
-                self.messages_.extend(batch)
-
         if self.current_msg_ != None:
             self.loop_.run_until_complete(self.current_msg_.ack())
+            self.current_msg_ = None
 
         if len(self.messages_) == 0:
-            return None
+            batch = self.loop_.run_until_complete(self.consumer_.fetch())
+            if batch is None or len(batch) == 0:
+                return None
+            else:
+                self.messages_.extend(batch)
 
         self.current_msg_ = self.messages_.popleft()
 
