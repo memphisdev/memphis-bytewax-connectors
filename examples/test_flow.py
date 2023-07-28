@@ -1,22 +1,22 @@
 import datetime as dt
 
-from memphis.connectors.bytewax import MemphisConsumerInput
-from memphis.connectors.bytewax import MemphisProducerOutput
-
 from bytewax.dataflow import Dataflow
 from bytewax.connectors.stdio import StdOutput
 
-memphis_src = MemphisConsumerInput("localhost",
-                                   "todocdcservice",
-                                   "%o3sH$Qfae",
-                                   "todo-cdc-events",
-                                   "bytewax")
+from memphis.connectors.bytewax import MemphisInput
+from memphis.connectors.bytewax import MemphisOutput
 
-memphis_sink = MemphisProducerOutput("localhost",
-                                     "todocdcservice",
-                                     "%o3sH$Qfae",
-                                     "copied-events",
-                                     "bytewax")
+memphis_src = MemphisInput("localhost",
+                           "todocdcservice",
+                           "%o3sH$Qfae",
+                           "todo-cdc-events",
+                           "bytewax")
+
+memphis_sink = MemphisOutput("localhost",
+                             "todocdcservice",
+                             "%o3sH$Qfae",
+                             "copied-events",
+                             "bytewax")
 
 flow = Dataflow()
 flow.input("memphis-consumer", memphis_src)

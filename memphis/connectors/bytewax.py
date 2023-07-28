@@ -9,7 +9,7 @@ from bytewax.outputs import StatelessSink
 
 from .._internal import Memphis
 
-__all__ = ["MemphisConsumerInput", "MemphisProducerOutput"]
+__all__ = ["MemphisInput", "MemphisOutput"]
 
 class _MemphisConsumerSource(StatefulSource):
     def _run(self, awaitable):
@@ -20,48 +20,31 @@ class _MemphisConsumerSource(StatefulSource):
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(awaitable)
 
-    def __init__(self, host, username, password, station, consumer_name, resume_state):
+    def __init__(self, connection, station, consumer_name, resume_state, replay_events=False, pull_inteval_ms=100):
         self._messages = deque()
         self._current_seq_num = None
-
-        self._memphis = Memphis()
-        self._run(self._memphis.connect(host=host, username=username, password=password))
-
-        # destroy the consumer on the server side if it exists
-        #print("Destroying {}".format(consumer_name))
-        #consumer = self._run(self._memphis.consumer(station_name=station,
-        #                                            consumer_name=consumer_name,
-        #                                            consumer_group=consumer_name,
-        #                                            start_consume_from_sequence=1,
-        #                                            pull_interval_ms=100))
-        #self._run(consumer.destroy())
-
-        # to give me time to check that the consumer was
-        # remove from the UI
-        #time.sleep(15)
-
-        # default initial seq num
-        initial_seq_num = 1
-
-        # we are resuming from a previous run
-        print("Resume state: {}".format(resume_state))
-        if resume_state is not None:
-            initial_seq_num = resume_state
+        self._connection = connection
 
         # we are going to use 1 consumer per consumer group so we can
-        # control the starting point of the consumer
-        # we are going to create a new consumer for each starting point
-        # since we can't seem to recreate consumers with the same name
-        # but different parameters even if we destroy them.
-        consumer_name = "{}-{}".format(consumer_name, initial_seq_num)
+        # more easily manage the lifecycle to support replaying events
         consumer_group = consumer_name
+
+        # destroy the consumer on the server side if it exists
+        # to enable event replay
+        if replay_events:
+            print("Destroying {}".format(consumer_name))
+            consumer = self._run(self._memphis.consumer(station_name=station,
+                                                        consumer_name=consumer_name,
+                                                        consumer_group=consumer_group,
+                                                        pull_interval_ms=pull_interval_ms))
+            self._run(consumer.destroy())
+
 
         print("Creating consumer: {}".format(consumer_name))
         self._consumer = self._run(self._memphis.consumer(station_name=station,
                                                           consumer_name=consumer_name,
-                                                          consumer_group=consumer_name,
-                                                          start_consume_from_sequence=initial_seq_num,
-                                                          pull_interval_ms=100))
+                                                          consumer_group=consumer_group,
+                                                          pull_interval_ms=pull_interval_ms))
 
     def next(self):
         if len(self._messages) == 0:
@@ -78,20 +61,49 @@ class _MemphisConsumerSource(StatefulSource):
         return msg.get_data()
 
     def snapshot(self):
-        print("Snapshotting: {}".format(self._current_seq_num))
         return self._current_seq_num
 
     def close(self):
         self._run(self._consumer.destroy())
-        self._run(self._memphis.close())
 
-class MemphisConsumerInput(PartitionedInput):    
-    def __init__(self, host, username, password, station, consumer_name_prefix):
+class MemphisInput(PartitionedInput):
+    """
+    Use a Memphis.dev station as an input.
+
+    Currently, this input connector supports:
+    * 1 consumer per station: Adding partitions to Memphis is ongoing work.
+      When available, we will update the connector to support 1 consumer
+      per station partition.
+    * At-most once semantics: Memphis messages are acknwoledged as they are
+      recieved.  If the Bytewax flow is killed and restarted, the connector
+      will restart from the next unacknowledged message.  This can cause cases
+      where messages are not processed. We expect at-least once semantics
+      to be available soon.
+    * Replaying messages: If replay_events is set to True, any previous
+      consumer will be destroyed and a new consumer that starts at the beginning
+      of the stream will be created.
+    
+    Args:
+
+        host: The hostname of the Memphis broker.
+
+        username: The username of the Memphis account.
+
+        password: The password of the Memphis account.
+
+        station: The name of the Memphis station
+
+        consumer_prefix: The prefix for the consumer name that will show up
+                 in the Memphis UI.
+
+    """
+    
+    def __init__(self, host, username, password, station, consumer_prefix):
         self.host = host
         self.username = username
         self.password = password
         self.station = station
-        self.consumer_name_prefix = consumer_name_prefix
+        self.consumer_prefix = consumer_prefix
 
     def list_parts(self):
         """
@@ -107,7 +119,7 @@ class MemphisConsumerInput(PartitionedInput):
                                       self.username,
                                       self.password,
                                       self.station,
-                                      self.consumer_name_prefix + "_" + for_part,
+                                      self.consumer_prefix + "_part" + for_part,
                                       resume_state)
 
 
@@ -134,7 +146,38 @@ class _MemphisProducerSink(StatelessSink):
         self._run(self._producer.destroy())
         self._run(self._memphis.close())
 
-class MemphisProducerOutput(DynamicOutput):
+class MemphisOutput(DynamicOutput):
+    """
+    Output to a Memphis.dev station.
+
+    The following output formats are supported:
+
+    * Bytearray
+    * Dictionary (for modeling a JSON-like object)
+
+    Currently, this output connector supports:
+    * 1 producer per worker: Adding partitions to Memphis is ongoing work.
+      When available, we will update the connector to support 1 consumer
+      per station partition.
+    * At-least once semantics: If the Bytewax flow is killed and restarted,
+      it may replay some messages.  If so, those messages will be delivered
+      to the station multiple times.  See the Memphis station settings 
+      that catch the delivery of multiple messages to filter out duplicates.
+
+    Args:
+
+        host: The hostname of the Memphis broker.
+
+        username: The username of the Memphis account.
+
+        password: The password of the Memphis account.
+
+        station: The name of the Memphis station
+
+        producer_prefix: The prefix for the producer name that will show up
+                 in the Memphis UI.
+    """
+
     def __init__(self, host, username, password, station, producer_prefix):
         self.host = host
         self.username = username
@@ -143,5 +186,5 @@ class MemphisProducerOutput(DynamicOutput):
         self.producer_prefix = producer_prefix
 
     def build(self, worker_index, worker_count):
-        producer_name = self.producer_prefix + "_" + str(worker_index)
+        producer_name = self.producer_prefix + "-" + str(worker_index)
         return _MemphisProducerSink(self.host, self.username, self.password, self.station, producer_name)
