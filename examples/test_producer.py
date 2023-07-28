@@ -16,11 +16,13 @@ def main():
         loop.run_until_complete(memphis.connect(host=HOST, username=USERNAME, password=PASSWORD, account_id=1))
 
         producer = loop.run_until_complete(memphis.producer(station_name=STATION, producer_name="test-producer"))
-        msg = "This is a test message."
+        msg_id = 0
         while True:
+            msg = "This is test message {}.".format(msg_id)
             print("Sending message: {}".format(msg))
             loop.run_until_complete(producer.produce(bytearray(msg, "utf-8")))
             time.sleep(0.5)
+            msg_id += 1
 
     except Exception as e:
         print(e)
