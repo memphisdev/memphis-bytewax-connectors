@@ -27,22 +27,18 @@ class _MemphisConsumerSource(StatefulSource):
         self._memphis = Memphis()
         self._run(self._memphis.connect(host=host, username=username, password=password))
 
-        # we are going to use 1 consumer per consumer group so we can destroy the
-        # group and recreate it with the desired starting sequence_id
-        consumer_group = consumer_name
-
         # destroy the consumer on the server side if it exists
-        print("Destroying {}".format(consumer_name))
-        consumer = self._run(self._memphis.consumer(station_name=station,
-                                                    consumer_name=consumer_name,
-                                                    consumer_group=consumer_name,
-                                                    start_consume_from_sequence=1,
-                                                    pull_interval_ms=100))
-        self._run(consumer.destroy())
+        #print("Destroying {}".format(consumer_name))
+        #consumer = self._run(self._memphis.consumer(station_name=station,
+        #                                            consumer_name=consumer_name,
+        #                                            consumer_group=consumer_name,
+        #                                            start_consume_from_sequence=1,
+        #                                            pull_interval_ms=100))
+        #self._run(consumer.destroy())
 
         # to give me time to check that the consumer was
         # remove from the UI
-        time.sleep(15)
+        #time.sleep(15)
 
         # default initial seq num
         initial_seq_num = 1
@@ -51,7 +47,16 @@ class _MemphisConsumerSource(StatefulSource):
         print("Resume state: {}".format(resume_state))
         if resume_state is not None:
             initial_seq_num = resume_state
-        
+
+        # we are going to use 1 consumer per consumer group so we can
+        # control the starting point of the consumer
+        # we are going to create a new consumer for each starting point
+        # since we can't seem to recreate consumers with the same name
+        # but different parameters even if we destroy them.
+        consumer_name = "{}-{}".format(consumer_name, initial_seq_num)
+        consumer_group = consumer_name
+
+        print("Creating consumer: {}".format(consumer_name))
         self._consumer = self._run(self._memphis.consumer(station_name=station,
                                                           consumer_name=consumer_name,
                                                           consumer_group=consumer_name,
