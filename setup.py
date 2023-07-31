@@ -18,7 +18,7 @@ setup(
     author_email="team@memphis.dev",
     url="https://github.com/memphisdev/memphis-bytewax-connectors",
     keywords=["message broker", "devtool", "streaming", "data"],
-    install_requires=["asyncio", "nats-py >= '2.3.0'", "bytewax >= '0.16.0'"],
+    install_requires=["asyncio", "nats-py >= 2.3.0", "bytewax >= 0.16.0"],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
