@@ -18,8 +18,8 @@ def main():
         producer = loop.run_until_complete(memphis.producer(station_name=STATION, producer_name="test-producer"))
         msg_id = 0
         while True:
-            msg = "This is test message {}.".format(msg_id)
-            print("Sending message: {}".format(msg))
+            msg = f"This is test message {msg_id}."
+            print(f"Sending message: {msg}.")
             loop.run_until_complete(producer.produce(bytearray(msg, "utf-8")))
             time.sleep(0.5)
             msg_id += 1

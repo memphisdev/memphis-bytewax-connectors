@@ -30,21 +30,27 @@ class _MemphisConsumerSource(StatefulSource):
         # more easily manage the lifecycle to support replaying events
         consumer_group = consumer_name
 
+        # resume from specific message sequence number
+        # enables at-least once semantics
+        start_consume_from_sequence = 1
+        if resume_state is not None:
+            start_consume_from_sequence = resume_state
+
         # destroy the consumer on the server side if it exists
         # to enable event replay
         if replay_events:
-            print("Destroying {}".format(consumer_name))
+            start_consume_from_sequence = 1
             consumer = self._run(self._memphis.consumer(station_name=station,
                                                         consumer_name=consumer_name,
                                                         consumer_group=consumer_group,
+                                                        start_consume_from_sequence=start_consume_from_sequence,
                                                         pull_interval_ms=pull_interval_ms))
             self._run(consumer.destroy())
 
-
-        print("Creating consumer: {}".format(consumer_name))
         self._consumer = self._run(self._memphis.consumer(station_name=station,
                                                           consumer_name=consumer_name,
                                                           consumer_group=consumer_group,
+                                                          start_consume_from_sequence=start_consume_from_sequence,
                                                           pull_interval_ms=pull_interval_ms))
 
     def next(self):
