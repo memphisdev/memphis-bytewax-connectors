@@ -20,10 +20,12 @@ class _MemphisConsumerSource(StatefulSource):
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(awaitable)
 
-    def __init__(self, connection, station, consumer_name, resume_state, replay_events=False, pull_inteval_ms=100):
+    def __init__(self, host, username, password, station, consumer_name, resume_state, replay_events=False, pull_interval_ms=100):
         self._messages = deque()
         self._current_seq_num = None
-        self._connection = connection
+
+        self._memphis = Memphis()
+        self._run(self._memphis.connect(host=host, username=username, password=password))
 
         # we are going to use 1 consumer per consumer group so we can
         # more easily manage the lifecycle to support replaying events
