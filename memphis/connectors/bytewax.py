@@ -99,7 +99,7 @@ class MemphisInput(PartitionedInput):
                  in the Memphis UI.
 
     """
-    
+
     def __init__(self, host, username, password, station, consumer_prefix):
         self.host = host
         self.username = username
