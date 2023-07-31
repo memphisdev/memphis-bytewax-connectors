@@ -16,21 +16,13 @@ import asyncio
 import copy
 import json
 import ssl
-from typing import Iterable, Union
 import uuid
-import base64
-import re
 
 import nats as broker
-from google.protobuf import descriptor_pb2, descriptor_pool
-from google.protobuf.message_factory import MessageFactory
-from graphql import build_schema as build_graphql_schema
 
 from .consumer import Consumer
 from .exceptions import MemphisConnectError, MemphisError
-from .headers import Headers
 from .producer import Producer
-from .types import Retention, Storage
 from .utils import get_internal_name, random_bytes
 
 
