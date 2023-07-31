@@ -1,6 +1,6 @@
 import json
 
-from .exceptions import MemphisConnectError, MemphisError
+from .exceptions import MemphisConnectError
 
 
 class Message:

@@ -5,7 +5,7 @@ import json
 import time
 from typing import Union
 
-from .exceptions import MemphisError, MemphisSchemaError
+from .exceptions import MemphisError
 from .headers import Headers
 from .utils import get_internal_name
 
