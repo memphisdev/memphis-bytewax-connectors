@@ -1,6 +1,5 @@
 import asyncio
 from collections import deque
-import time
 
 from bytewax.inputs import PartitionedInput
 from bytewax.inputs import StatefulSource
