@@ -1,6 +1,5 @@
 import asyncio
 from collections import deque
-from enum import Enum
 
 from bytewax.inputs import PartitionedInput
 from bytewax.inputs import StatefulSource
