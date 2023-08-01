@@ -1,4 +1,5 @@
 import datetime as dt
+import os
 
 from bytewax.dataflow import Dataflow
 from bytewax.connectors.stdio import StdOutput
@@ -7,15 +8,16 @@ from memphis.connectors.bytewax import MemphisInput
 from memphis.connectors.bytewax import MemphisOutput
 
 memphis_src = MemphisInput("localhost",
-                           "todocdcservice",
+                           "testuser",
                            "%o3sH$Qfae",
-                           "todo-cdc-events",
-                           "bytewax")
+                           "test-messages",
+                           "bytewax",
+                           replay_messages = "REPLAY_MESSAGES" in os.environ)
 
 memphis_sink = MemphisOutput("localhost",
-                             "todocdcservice",
+                             "testuser",
                              "%o3sH$Qfae",
-                             "copied-events",
+                             "copied-test-messages",
                              "bytewax")
 
 flow = Dataflow()
