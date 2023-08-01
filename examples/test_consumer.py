@@ -2,8 +2,8 @@ from __future__ import annotations
 import asyncio
 from memphis._internal import Memphis
 
-STATION = "todo-cdc-events"
-USERNAME = "todocdcservice"
+STATION = "test-messages"
+USERNAME = "testuser"
 PASSWORD = "%o3sH$Qfae"
 HOST = "localhost"
 

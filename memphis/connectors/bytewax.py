@@ -1,5 +1,6 @@
 import asyncio
 from collections import deque
+from enum import Enum
 
 from bytewax.inputs import PartitionedInput
 from bytewax.inputs import StatefulSource
@@ -19,40 +20,26 @@ class _MemphisConsumerSource(StatefulSource):
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(awaitable)
 
-    def __init__(self, host, username, password, station, consumer_name, resume_state, replay_events=False, pull_interval_ms=100):
+    def __init__(self, host, username, password, station, consumer_name, start_consume_from_sequence, pull_interval_ms=100):
         self._messages = deque()
         self._current_seq_num = None
 
         self._memphis = Memphis()
         self._run(self._memphis.connect(host=host, username=username, password=password))
 
+        # create an entirely new consumer every time so that we can control the starting
+        # offset
+        consumer_name = f"{consumer_name}-{self._memphis.connection_id}"
+
         # we are going to use 1 consumer per consumer group so we can
         # more easily manage the lifecycle to support replaying events
         consumer_group = consumer_name
-
-        # resume from specific message sequence number
-        # enables at-least once semantics
-        start_consume_from_sequence = 1
-        if resume_state is not None:
-            start_consume_from_sequence = resume_state
-
-        # destroy the consumer on the server side if it exists
-        # to enable event replay
-        if replay_events:
-            start_consume_from_sequence = 1
-            consumer = self._run(self._memphis.consumer(station_name=station,
-                                                        consumer_name=consumer_name,
-                                                        consumer_group=consumer_group,
-                                                        start_consume_from_sequence=start_consume_from_sequence,
-                                                        pull_interval_ms=pull_interval_ms))
-            self._run(consumer.destroy())
 
         self._consumer = self._run(self._memphis.consumer(station_name=station,
                                                           consumer_name=consumer_name,
                                                           consumer_group=consumer_group,
                                                           start_consume_from_sequence=start_consume_from_sequence,
                                                           pull_interval_ms=pull_interval_ms))
-
     def next(self):
         if len(self._messages) == 0:
             batch = self._run(self._consumer.fetch())
@@ -81,14 +68,12 @@ class MemphisInput(PartitionedInput):
     * 1 consumer per station: Adding partitions to Memphis is ongoing work.
       When available, we will update the connector to support 1 consumer
       per station partition.
-    * At-most once semantics: Memphis messages are acknwoledged as they are
-      recieved.  If the Bytewax flow is killed and restarted, the connector
-      will restart from the next unacknowledged message.  This can cause cases
-      where messages are not processed. We expect at-least once semantics
-      to be available soon.
-    * Replaying messages: If replay_events is set to True, any previous
-      consumer will be destroyed and a new consumer that starts at the beginning
-      of the stream will be created.
+    * At-least once semantics: If the Bytewax flow is killed and restarted,
+      the connector will restart from the last messaged processed before the
+      resume state was saved. All messages processed since the resume state
+      will be reprocessed.
+    * Replaying messages: If replay_messages is set to True, consumption
+      will start at the first message in the station.
     
     Args:
 
@@ -103,14 +88,17 @@ class MemphisInput(PartitionedInput):
         consumer_prefix: The prefix for the consumer name that will show up
                  in the Memphis UI.
 
+        replay_messages: Start consuming from first message in the station
+
     """
 
-    def __init__(self, host, username, password, station, consumer_prefix):
+    def __init__(self, host, username, password, station, consumer_prefix, replay_messages=False):
         self.host = host
         self.username = username
         self.password = password
         self.station = station
         self.consumer_prefix = consumer_prefix
+        self.replay_messages = replay_messages
 
     def list_parts(self):
         """
@@ -122,12 +110,16 @@ class MemphisInput(PartitionedInput):
         return { "0" }
 
     def build_part(self, for_part, resume_state):
+        start_consume_from_sequence = 1
+        if resume_state is not None and not self.replay_messages:
+            start_consume_from_sequence = resume_state
+
         return _MemphisConsumerSource(self.host,
                                       self.username,
                                       self.password,
                                       self.station,
                                       self.consumer_prefix + "_part" + for_part,
-                                      resume_state)
+                                      start_consume_from_sequence)
 
 
 class _MemphisProducerSink(StatelessSink):

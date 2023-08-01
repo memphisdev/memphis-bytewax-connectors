@@ -4,8 +4,8 @@ import time
 
 from memphis._internal import Memphis
 
-STATION = "todo-cdc-events"
-USERNAME = "todocdcservice"
+STATION = "test-messages"
+USERNAME = "testuser"
 PASSWORD = "%o3sH$Qfae"
 HOST = "localhost"
 
@@ -21,7 +21,7 @@ def main():
             msg = f"This is test message {msg_id}."
             print(f"Sending message: {msg}.")
             loop.run_until_complete(producer.produce(bytearray(msg, "utf-8")))
-            time.sleep(0.5)
+            time.sleep(0.1)
             msg_id += 1
 
     except Exception as e:
