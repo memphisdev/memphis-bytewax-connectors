@@ -1,10 +1,8 @@
 import asyncio
 import datetime as dt
 import json
-import os
 import pprint
 import random
-import sys
 import time
 
 from memphis._internal import Memphis
@@ -53,7 +51,6 @@ def main():
     try:
         loop = asyncio.get_event_loop()
 
-            
         memphis = Memphis()
         loop.run_until_complete(memphis.connect(host=HOST, username=USERNAME, password=PASSWORD, account_id=1))
 
@@ -65,7 +62,7 @@ def main():
             output_bytes = bytearray(output_str, "utf-8")
 
             loop.run_until_complete(producer.produce(message=output_bytes))
-            
+
             time.sleep(DELAY_SEC)
             print()
 
