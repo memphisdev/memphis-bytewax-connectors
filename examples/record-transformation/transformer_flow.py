@@ -51,15 +51,15 @@ def is_valid_todo_item(obj):
 
         try:
             dt.datetime.fromisoformat(obj["creation_timestamp"])
-        except Exception as e:
+        except:
             return False
 
         if "due_date" not in obj:
             return False
-            
+
         try:
             dt.date.fromisoformat(obj["due_date"])
-        except Exception as e:
+        except:
             if obj["due_date"] is not None:
                 return False
 
@@ -101,7 +101,7 @@ def is_valid_record(obj):
         return False
 
     return True
-    
+
 flow = Dataflow()
 flow.input("memphis-consumer", memphis_src)
 
