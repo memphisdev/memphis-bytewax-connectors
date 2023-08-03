@@ -138,7 +138,7 @@ class _MemphisProducerSink(StatelessSink):
                                                           producer_name=producer_name))
 
     def write(self, item):
-        self._run(self._producer.produce(bytearray(item, "utf-8")))
+        self._run(self._producer.produce(item))
 
     def close(self):
         self._run(self._producer.destroy())
