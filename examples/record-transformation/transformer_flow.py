@@ -51,7 +51,7 @@ def is_valid_todo_item(obj):
 
         try:
             dt.datetime.fromisoformat(obj["creation_timestamp"])
-        except:
+        except Exception:
             return False
 
         if "due_date" not in obj:
@@ -59,7 +59,7 @@ def is_valid_todo_item(obj):
 
         try:
             dt.date.fromisoformat(obj["due_date"])
-        except:
+        except Exception:
             if obj["due_date"] is not None:
                 return False
 
