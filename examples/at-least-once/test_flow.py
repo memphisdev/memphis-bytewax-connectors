@@ -23,5 +23,6 @@ memphis_sink = MemphisOutput("localhost",
 flow = Dataflow()
 flow.input("memphis-consumer", memphis_src)
 flow.map(lambda m: m.decode("utf-8") + " " + dt.datetime.now().isoformat())
+flow.map(lambda s: bytearray(s, "utf-8"))
 flow.output("out", StdOutput())
 flow.output("memphis-producer", memphis_sink)
