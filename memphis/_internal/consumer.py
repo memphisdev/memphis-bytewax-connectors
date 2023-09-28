@@ -32,11 +32,9 @@ class Consumer:
         self.batch_max_time_to_wait_ms = batch_max_time_to_wait_ms
         self.max_ack_time_ms = max_ack_time_ms
         self.max_msg_deliveries = max_msg_deliveries
-        self.ping_consumer_interval_ms = 30000
-        if error_callback is None:
-            error_callback = default_error_handler
         self.start_consume_from_sequence = start_consume_from_sequence
         self.last_messages = last_messages
+        self.psub = None
 
     async def fetch(self, batch_size: int = 10):
         """
@@ -93,11 +91,12 @@ class Consumer:
                     durable_name = get_internal_name(self.consumer_name)
 
                 subject = get_internal_name(self.station_name)
-                self.psub = await self.connection.broker_connection.pull_subscribe(
-                    subject + ".final", durable=durable_name
-                )
 
-                msgs = await self.psub.fetch(batch_size)
+                if self.psub is None:
+                    self.psub = await self.connection.broker_connection.pull_subscribe(
+                        subject + ".final", durable=durable_name)
+
+                msgs = await psub.fetch(batch_size)
 
                 for msg in msgs:
                     messages.append(
