@@ -312,6 +312,7 @@ class Memphis:
                 raise MemphisError(
                     "Consumer creation options can't contain both start_consume_from_sequence and last_messages"
                 )
+
             create_consumer_req = {
                 "name": consumer_name,
                 "station_name": station_name,
@@ -329,6 +330,7 @@ class Memphis:
             create_consumer_req_bytes = json.dumps(create_consumer_req, indent=2).encode(
                 "utf-8"
             )
+
             err_msg = await self.broker_manager.request(
                 "$memphis_consumer_creations", create_consumer_req_bytes, timeout=5
             )
