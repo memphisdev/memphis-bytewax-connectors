@@ -6,6 +6,7 @@ from typing import Union
 
 from .exceptions import MemphisError
 from .headers import Headers
+from .partition_generator import PartitionGenerator
 from .utils import get_internal_name
 
 schemaverse_fail_alert_type = "schema_validation_fail_alert"
@@ -13,14 +14,14 @@ schemaverse_fail_alert_type = "schema_validation_fail_alert"
 
 class Producer:
     def __init__(
-        self, connection, producer_name: str, station_name: str, real_name: str
-    ):
+        self, connection, producer_name: str, station_name: str, real_name: str, partitions: [int]):
         self.connection = connection
         self.producer_name = producer_name.lower()
         self.station_name = station_name
         self.internal_station_name = get_internal_name(self.station_name)
         self.loop = asyncio.get_running_loop()
         self.real_name = real_name
+        self.partition_generator = PartitionGenerator(partitions)
 
     async def produce(
         self,
@@ -53,8 +54,9 @@ class Producer:
             else:
                 headers = memphis_headers
 
+            partition_name = f"{self.internal_station_name}${str(next(self.partition_generator))}"
             await self.connection.broker_connection.publish(
-                self.internal_station_name + ".final",
+                partition_name + ".final",
                 message,
                 timeout=ack_wait_sec,
                 headers=headers,

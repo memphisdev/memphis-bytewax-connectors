@@ -22,6 +22,8 @@ class Consumer:
         max_msg_deliveries: int = 10,
         start_consume_from_sequence: int = 1,
         last_messages: int = -1,
+        partition_generator: PartitionGenerator = None,
+        subscriptions: dict = None
     ):
         self.connection = connection
         self.station_name = station_name.lower()
@@ -34,7 +36,8 @@ class Consumer:
         self.max_msg_deliveries = max_msg_deliveries
         self.start_consume_from_sequence = start_consume_from_sequence
         self.last_messages = last_messages
-        self.psub = None
+        self.partition_generator = partition_generator
+        self.subscriptions = subscriptions
 
     async def fetch(self, batch_size: int = 10):
         """
@@ -82,21 +85,11 @@ class Consumer:
                 if batch_size > self.MAX_BATCH_SIZE:
                     raise MemphisError(
                         f"Batch size can not be greater than {self.MAX_BATCH_SIZE}")
+
                 self.batch_size = batch_size
 
-                durable_name = ""
-                if self.consumer_group != "":
-                    durable_name = get_internal_name(self.consumer_group)
-                else:
-                    durable_name = get_internal_name(self.consumer_name)
-
-                subject = get_internal_name(self.station_name)
-
-                if self.psub is None:
-                    self.psub = await self.connection.broker_connection.pull_subscribe(
-                        subject + ".final", durable=durable_name)
-
-                msgs = await psub.fetch(batch_size)
+                partition_number = next(self.partition_generator)
+                msgs = await self.subscriptions[partition_number].fetch(batch_size)
 
                 for msg in msgs:
                     messages.append(

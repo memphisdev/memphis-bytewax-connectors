@@ -22,9 +22,11 @@ import nats as broker
 
 from .consumer import Consumer
 from .exceptions import MemphisConnectError, MemphisError
+from .partition_generator import PartitionGenerator
 from .producer import Producer
 from .utils import get_internal_name, random_bytes
 
+app_id = str(uuid.uuid4())
 
 class Memphis:
     MAX_BATCH_SIZE = 5000
@@ -35,6 +37,8 @@ class Memphis:
         self.schema_updates_data = {}
         self.schema_updates_subs = {}
         self.producers_per_station = {}
+        self.partition_producers_updates_data = {}
+        self.partition_consumers_updates_data = {}
         self.schema_tasks = {}
         self.proto_msgs = {}
         self.graphql_schemas = {}
@@ -209,35 +213,29 @@ class Memphis:
             return host.split("https://")[1]
         return host
 
-    async def producer(
-        self,
-        station_name: str,
-        producer_name: str,
-        generate_random_suffix: bool = False,
-    ):
-        """Creates a producer.
-        Args:
-            station_name (str): station name to produce messages into.
-            producer_name (str): name for the producer.
-            generate_random_suffix (bool): false by default, if true concatenate a random suffix to producer's name
-        Raises:
-            Exception: _description_
-        Returns:
-            _type_: _description_
+    async def query_partitions(self, station_name: str):
         """
+        Queries the broker to get a list of partitions for a given station
+        by creating and then deleting a producer.
+
+        Args:
+            station_name (str): station name
+        """
+
         try:
             if not self.is_connection_active:
                 raise MemphisError("Connection is dead")
+            producer_name = "query-partitions"
             real_name = producer_name.lower()
-            if generate_random_suffix:
-                producer_name = self.__generate_random_suffix(producer_name)
+            internal_station_name = get_internal_name(station_name)
             create_producer_req = {
                 "name": producer_name,
                 "station_name": station_name,
                 "connection_id": self.connection_id,
                 "producer_type": "application",
-                "req_version": 1,
-                "username": self.username
+                "req_version": 3,
+                "username": self.username,
+                "app_id": app_id
             }
             create_producer_req_bytes = json.dumps(create_producer_req, indent=2).encode(
                 "utf-8"
@@ -250,8 +248,76 @@ class Memphis:
             if create_res["error"] != "":
                 raise MemphisError(create_res["error"])
 
+            broker_part_list = set(create_res["partitions_update"]["partitions_list"])
+
+            destroy_producer_req = {
+                "name": producer_name,
+                "station_name": station_name,
+                "username": self.username,
+                "connection_id": self.connection_id,
+                "req_version": 1,
+            }
+
+            producer_name = json.dumps(destroy_producer_req).encode("utf-8")
+            res = await self.connection.broker_manager.request(
+                "$memphis_producer_destructions", producer_name, timeout=5
+            )
+            error = res.data.decode("utf-8")
+            if error != "" and not "not exist" in error:
+                raise Exception(error)
+
+            return broker_part_list
+
+        except Exception as e:
+            raise MemphisError(str(e)) from e
+
+    async def producer(
+        self,
+        station_name: str,
+        producer_name: str,
+        partitions: [int]
+    ):
+        """Creates a producer.
+        Args:
+            station_name (str): station name to produce messages into.
+            producer_name (str): name for the producer.
+            partitions ([int]): list of partitions to produce to in a round-robin fashion
+        Raises:
+            Exception: _description_
+        Returns:
+            _type_: _description_
+        """
+        try:
+            if not self.is_connection_active:
+                raise MemphisError("Connection is dead")
+            real_name = producer_name.lower()
             internal_station_name = get_internal_name(station_name)
-            producer = Producer(self, producer_name, station_name, real_name)
+            create_producer_req = {
+                "name": producer_name,
+                "station_name": station_name,
+                "connection_id": self.connection_id,
+                "producer_type": "application",
+                "req_version": 3,
+                "username": self.username,
+                "app_id": app_id
+            }
+            create_producer_req_bytes = json.dumps(create_producer_req, indent=2).encode(
+                "utf-8"
+            )
+            create_res = await self.broker_manager.request(
+                "$memphis_producer_creations", create_producer_req_bytes, timeout=5
+            )
+            create_res = create_res.data.decode("utf-8")
+            create_res = json.loads(create_res)
+            if create_res["error"] != "":
+                raise MemphisError(create_res["error"])
+
+            broker_part_list = set(create_res["partitions_update"]["partitions_list"])
+            for partition in partitions:
+                if partition not in broker_part_list:
+                    raise Exception(f"Unknown partition {partition}: {broker_part_list}")
+
+            producer = Producer(self, producer_name, station_name, real_name, partitions)
             map_key = internal_station_name + "_" + real_name
             self.producers_map[map_key] = producer
             return producer
@@ -263,6 +329,7 @@ class Memphis:
         self,
         station_name: str,
         consumer_name: str,
+        partitions: [int],
         consumer_group: str = "",
         pull_interval_ms: int = 1000,
         batch_size: int = 10,
@@ -277,6 +344,7 @@ class Memphis:
         Args:.
             station_name (str): station name to consume messages from.
             consumer_name (str): name for the consumer.
+            partitions ([int]): list of partitions to consume from
             consumer_group (str, optional): consumer group name. Defaults to the consumer name.
             pull_interval_ms (int, optional): interval in milliseconds between pulls. Defaults to 1000.
             batch_size (int, optional): pull batch size. Defaults to 10.
@@ -323,21 +391,32 @@ class Memphis:
                 "max_msg_deliveries": max_msg_deliveries,
                 "start_consume_from_sequence": start_consume_from_sequence,
                 "last_messages": last_messages,
-                "req_version": 1,
-                "username": self.username
+                "req_version": 3,
+                "username": self.username,
+                "app_id": app_id
             }
 
             create_consumer_req_bytes = json.dumps(create_consumer_req, indent=2).encode(
                 "utf-8"
             )
 
-            err_msg = await self.broker_manager.request(
+            create_res = await self.broker_manager.request(
                 "$memphis_consumer_creations", create_consumer_req_bytes, timeout=5
             )
-            err_msg = err_msg.data.decode("utf-8")
+            create_res = json.loads(err_msg.data.decode("utf-8"))
 
-            if err_msg != "":
-                raise MemphisError(err_msg)
+            if create_res["error"] != "":
+                raise MemphisError(create_res)
+
+            partition_generator = PartitionGenerator(partitions)
+            subs = {}
+            broker_part_list = set(create_res["partitions_update"]["partitions_list"])
+            for partition in partitions:
+                if partition not in broker_part_list:
+                    raise Exception(f"Unknown partition {partition}: {broker_part_list}")
+                subject = f"{inner_station_name}${str(p)}.final"
+                psub = await self.broker_connection.pull_subscribe(subject, durable=consumer_group)
+                subs[p] = psub
 
             internal_station_name = get_internal_name(station_name)
             map_key = internal_station_name + "_" + real_name
@@ -353,6 +432,8 @@ class Memphis:
                 max_msg_deliveries,
                 start_consume_from_sequence=start_consume_from_sequence,
                 last_messages=last_messages,
+                partition_generator=partition_generator,
+                subscriptions=subs
             )
             self.consumers_map[map_key] = consumer
             return consumer
