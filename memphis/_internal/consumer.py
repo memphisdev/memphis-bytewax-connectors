@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 
 from .exceptions import MemphisError
-from .utils import default_error_handler, get_internal_name
 from .message import Message
+from .partition_generator import PartitionGenerator
+from .utils import get_internal_name
 
 class Consumer:
     MAX_BATCH_SIZE = 5000

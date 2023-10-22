@@ -226,8 +226,6 @@ class Memphis:
             if not self.is_connection_active:
                 raise MemphisError("Connection is dead")
             producer_name = "query-partitions"
-            real_name = producer_name.lower()
-            internal_station_name = get_internal_name(station_name)
             create_producer_req = {
                 "name": producer_name,
                 "station_name": station_name,
@@ -403,7 +401,7 @@ class Memphis:
             create_res = await self.broker_manager.request(
                 "$memphis_consumer_creations", create_consumer_req_bytes, timeout=5
             )
-            create_res = json.loads(err_msg.data.decode("utf-8"))
+            create_res = json.loads(create_res.data.decode("utf-8"))
 
             if create_res["error"] != "":
                 raise MemphisError(create_res)
@@ -414,9 +412,9 @@ class Memphis:
             for partition in partitions:
                 if partition not in broker_part_list:
                     raise Exception(f"Unknown partition {partition}: {broker_part_list}")
-                subject = f"{inner_station_name}${str(p)}.final"
+                subject = f"{inner_station_name}${str(partition)}.final"
                 psub = await self.broker_connection.pull_subscribe(subject, durable=consumer_group)
-                subs[p] = psub
+                subs[partition] = psub
 
             internal_station_name = get_internal_name(station_name)
             map_key = internal_station_name + "_" + real_name
