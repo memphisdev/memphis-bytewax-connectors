@@ -10,7 +10,7 @@ from .._internal import Memphis
 
 __all__ = ["MemphisInput", "MemphisOutput"]
 
-def _run_async(self, awaitable):
+def _run_async(awaitable):
     """
     Uses the event loop's run_until_complete() method to
     run an async function as if it were synchronous.
