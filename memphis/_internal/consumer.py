@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 
 from .exceptions import MemphisError
-from .utils import default_error_handler, get_internal_name
 from .message import Message
-
+from .partition_generator import PartitionGenerator
+from .utils import get_internal_name
 
 class Consumer:
     MAX_BATCH_SIZE = 5000
@@ -21,9 +21,10 @@ class Consumer:
         batch_max_time_to_wait_ms: int,
         max_ack_time_ms: int,
         max_msg_deliveries: int = 10,
-        error_callback=None,
         start_consume_from_sequence: int = 1,
         last_messages: int = -1,
+        partition_generator: PartitionGenerator = None,
+        subscriptions: dict = None
     ):
         self.connection = connection
         self.station_name = station_name.lower()
@@ -34,20 +35,10 @@ class Consumer:
         self.batch_max_time_to_wait_ms = batch_max_time_to_wait_ms
         self.max_ack_time_ms = max_ack_time_ms
         self.max_msg_deliveries = max_msg_deliveries
-        self.ping_consumer_interval_ms = 30000
-        if error_callback is None:
-            error_callback = default_error_handler
         self.start_consume_from_sequence = start_consume_from_sequence
         self.last_messages = last_messages
-        self.context = {}
-        self.dls_messages = []
-        self.dls_current_index = 0
-        self.dls_callback_func = None
-        self.t_consume = None
-
-    def set_context(self, context):
-        """Set a context (dict) that will be passed to each message handler call."""
-        self.context = context
+        self.partition_generator = partition_generator
+        self.subscriptions = subscriptions
 
     async def fetch(self, batch_size: int = 10):
         """
@@ -95,32 +86,16 @@ class Consumer:
                 if batch_size > self.MAX_BATCH_SIZE:
                     raise MemphisError(
                         f"Batch size can not be greater than {self.MAX_BATCH_SIZE}")
-                self.batch_size = batch_size
-                if len(self.dls_messages) > 0:
-                    if len(self.dls_messages) <= batch_size:
-                        messages = self.dls_messages
-                        self.dls_messages = []
-                        self.dls_current_index = 0
-                    else:
-                        messages = self.dls_messages[0:batch_size]
-                        del self.dls_messages[0:batch_size]
-                        self.dls_current_index -= len(messages)
-                    return messages
 
-                durable_name = ""
-                if self.consumer_group != "":
-                    durable_name = get_internal_name(self.consumer_group)
-                else:
-                    durable_name = get_internal_name(self.consumer_name)
-                subject = get_internal_name(self.station_name)
-                self.psub = await self.connection.broker_connection.pull_subscribe(
-                    subject + ".final", durable=durable_name
-                )
-                msgs = await self.psub.fetch(batch_size)
+                self.batch_size = batch_size
+
+                partition_number = next(self.partition_generator)
+                msgs = await self.subscriptions[partition_number].fetch(batch_size)
+
                 for msg in msgs:
                     messages.append(
                         Message(msg, self.connection, self.consumer_group))
-                return messages
+
             except Exception as e:
                 if "timeout" not in str(e).lower():
                     raise MemphisError(str(e)) from e

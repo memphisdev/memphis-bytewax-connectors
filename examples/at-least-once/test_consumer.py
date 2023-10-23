@@ -14,8 +14,10 @@ def main():
         memphis = Memphis()
         loop.run_until_complete(memphis.connect(host=HOST, username=USERNAME, password=PASSWORD))
 
+        partitions = [1, 2, 3, 4]
         consumer = loop.run_until_complete(memphis.consumer(station_name=STATION,
                                                             consumer_name="test-consumer",
+                                                            partitions=partitions,
                                                             consumer_group=""))
         while True:
             msgs = loop.run_until_complete(consumer.fetch())

@@ -15,7 +15,10 @@ def main():
         memphis = Memphis()
         loop.run_until_complete(memphis.connect(host=HOST, username=USERNAME, password=PASSWORD, account_id=1))
 
-        producer = loop.run_until_complete(memphis.producer(station_name=STATION, producer_name="test-producer"))
+        partitions = [1, 2, 3, 4]
+        producer = loop.run_until_complete(memphis.producer(station_name=STATION,
+                                                            producer_name="test-producer",
+                                                            partitions=partitions))
         msg_id = 0
         while True:
             msg = f"This is test message {msg_id}."

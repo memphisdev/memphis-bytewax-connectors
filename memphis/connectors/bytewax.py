@@ -10,21 +10,21 @@ from .._internal import Memphis
 
 __all__ = ["MemphisInput", "MemphisOutput"]
 
-class _MemphisConsumerSource(StatefulSource):
-    def _run(self, awaitable):
-        """
-        Uses the event loop's run_until_complete() method to
-        run an async function as if it were synchronous.
-        """
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(awaitable)
+def _run_async(awaitable):
+    """
+    Uses the event loop's run_until_complete() method to
+    run an async function as if it were synchronous.
+    """
+    loop = asyncio.get_event_loop()
+    return loop.run_until_complete(awaitable)
 
-    def __init__(self, host, username, password, station, consumer_name, start_consume_from_sequence, pull_interval_ms=100):
+class _MemphisConsumerSource(StatefulSource):
+    def __init__(self, host, username, password, station, consumer_name, start_consume_from_sequence, partitions, pull_interval_ms=100):
         self._messages = deque()
         self._current_seq_num = None
 
         self._memphis = Memphis()
-        self._run(self._memphis.connect(host=host, username=username, password=password))
+        _run_async(self._memphis.connect(host=host, username=username, password=password))
 
         # create an entirely new consumer every time so that we can control the starting
         # offset
@@ -34,14 +34,15 @@ class _MemphisConsumerSource(StatefulSource):
         # more easily manage the lifecycle to support replaying events
         consumer_group = consumer_name
 
-        self._consumer = self._run(self._memphis.consumer(station_name=station,
-                                                          consumer_name=consumer_name,
-                                                          consumer_group=consumer_group,
-                                                          start_consume_from_sequence=start_consume_from_sequence,
-                                                          pull_interval_ms=pull_interval_ms))
+        self._consumer = _run_async(self._memphis.consumer(station_name=station,
+                                                           consumer_name=consumer_name,
+                                                           partitions=partitions,
+                                                           consumer_group=consumer_group,
+                                                           start_consume_from_sequence=start_consume_from_sequence,
+                                                           pull_interval_ms=pull_interval_ms))
     def next(self):
         if len(self._messages) == 0:
-            batch = self._run(self._consumer.fetch())
+            batch = _run_async(self._consumer.fetch())
             if batch is None or len(batch) == 0:
                 return None
             else:
@@ -49,7 +50,7 @@ class _MemphisConsumerSource(StatefulSource):
 
         msg = self._messages.popleft()
         self._current_seq_num = msg.get_sequence_number()
-        self._run(msg.ack())
+        _run_async(msg.ack())
 
         return msg.get_data()
 
@@ -57,7 +58,8 @@ class _MemphisConsumerSource(StatefulSource):
         return self._current_seq_num
 
     def close(self):
-        self._run(self._consumer.destroy())
+        _run_async(self._consumer.destroy())
+        _run_async(self._memphis.close())
 
 class MemphisInput(PartitionedInput):
     """
@@ -106,7 +108,12 @@ class MemphisInput(PartitionedInput):
         a consumer group per partition.
         """
 
-        return { "0" }
+        memphis = Memphis()
+        _run_async(memphis.connect(host=self.host, username=self.username, password=self.password))
+        partitions = set(_run_async(memphis.query_partitions(self.station)))
+        _run_async(memphis.close())
+
+        return partitions
 
     def build_part(self, for_part, resume_state):
         start_consume_from_sequence = 1
@@ -118,31 +125,24 @@ class MemphisInput(PartitionedInput):
                                       self.password,
                                       self.station,
                                       self.consumer_prefix + "_part" + for_part,
-                                      start_consume_from_sequence)
-
+                                      start_consume_from_sequence,
+                                      [for_part])
 
 class _MemphisProducerSink(StatelessSink):
-    def _run(self, awaitable):
-        """
-        Uses the event loop's run_until_complete() method to
-        run an async function as if it were synchronous.
-        """
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(awaitable)
-
-    def __init__(self, host, username, password, station, producer_name):
+    def __init__(self, host, username, password, station, producer_name, partitions):
         self._memphis = Memphis()
-        self._run(self._memphis.connect(host=host, username=username, password=password))
+        _run_async(self._memphis.connect(host=host, username=username, password=password))
 
-        self._producer = self._run(self._memphis.producer(station_name=station,
-                                                          producer_name=producer_name))
+        self._producer = _run_async(self._memphis.producer(station_name=station,
+                                                           producer_name=producer_name,
+                                                           partitions=partitions))
 
     def write(self, item):
-        self._run(self._producer.produce(item))
+        _run_async(self._producer.produce(item))
 
     def close(self):
-        self._run(self._producer.destroy())
-        self._run(self._memphis.close())
+        _run_async(self._producer.destroy())
+        _run_async(self._memphis.close())
 
 class MemphisOutput(DynamicOutput):
     """
@@ -185,4 +185,10 @@ class MemphisOutput(DynamicOutput):
 
     def build(self, worker_index, worker_count):
         producer_name = self.producer_prefix + "-" + str(worker_index)
-        return _MemphisProducerSink(self.host, self.username, self.password, self.station, producer_name)
+
+        memphis = Memphis()
+        _run_async(memphis.connect(host=self.host, username=self.username, password=self.password))
+        partitions = set(_run_async(memphis.query_partitions(self.station)))
+        _run_async(memphis.close())
+
+        return _MemphisProducerSink(self.host, self.username, self.password, self.station, producer_name, partitions)
