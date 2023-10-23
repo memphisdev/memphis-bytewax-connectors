@@ -406,17 +406,18 @@ class Memphis:
             if create_res["error"] != "":
                 raise MemphisError(create_res)
 
+            internal_station_name = get_internal_name(station_name)
+
             partition_generator = PartitionGenerator(partitions)
             subs = {}
             broker_part_list = set(create_res["partitions_update"]["partitions_list"])
             for partition in partitions:
                 if partition not in broker_part_list:
                     raise Exception(f"Unknown partition {partition}: {broker_part_list}")
-                subject = f"{inner_station_name}${str(partition)}.final"
+                subject = f"{internal_station_name}${str(partition)}.final"
                 psub = await self.broker_connection.pull_subscribe(subject, durable=consumer_group)
                 subs[partition] = psub
 
-            internal_station_name = get_internal_name(station_name)
             map_key = internal_station_name + "_" + real_name
             consumer = Consumer(
                 self,
