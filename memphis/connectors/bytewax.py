@@ -186,6 +186,7 @@ class MemphisOutput(DynamicOutput):
     def build(self, worker_index, worker_count):
         producer_name = self.producer_prefix + "-" + str(worker_index)
 
+        memphis = Memphis()
         _run_async(memphis.connect(host=self.host, username=self.username, password=self.password))
         partitions = set(_run_async(memphis.query_partitions(self.station)))
         _run_async(memphis.close())
