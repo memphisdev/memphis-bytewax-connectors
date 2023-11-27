@@ -1,25 +1,19 @@
 <div align="center">
   
-  ![Banner- Memphis dev streaming  (2)](https://github.com/memphisdev/memphis.py/assets/107035359/6787500c-d806-4f22-96aa-a182d4c24dfa)
-  
+![Github (3)](https://github.com/memphisdev/memphis-bytewax-connectors/assets/107035359/0e100b97-a745-4615-99fa-c68ed044dc0f)  
 </div>
 
 <div align="center">
 
-  <h4>
+   <h4>
 
-**[Memphis](https://memphis.dev)** is an intelligent, frictionless message broker.<br>Made to enable developers to build real-time and streaming apps fast.
+**[Memphis.dev](https://memphis.dev)** is a highly scalable, painless, and effortless data streaming platform.<br>
+Made to enable developers and data teams to collaborate and build<br>
+real-time and streaming apps fast.
 
   </h4>
   
-  <a href="https://landscape.cncf.io/?selected=memphis"><img width="200" alt="CNCF Silver Member" src="https://github.com/cncf/artwork/raw/master/other/cncf-member/silver/white/cncf-member-silver-white.svg#gh-dark-mode-only"></a>
-  
-</div>
-
-<div align="center">
-  
-  <img width="200" alt="CNCF Silver Member" src="https://github.com/cncf/artwork/raw/master/other/cncf-member/silver/color/cncf-member-silver-color.svg#gh-light-mode-only">
-  
+<img width="177" alt="cloud_native 2 (5)" src="https://github.com/memphisdev/memphis-bytewax-connectors/assets/107035359/7b1e52d6-8bb5-4262-b1a1-c37930acb732">  
 </div>
  
  <p align="center">
